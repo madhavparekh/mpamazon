@@ -1,0 +1,25 @@
+{
+  "name": "mpamazon",
+  "version": "1.0.0",
+  "description": "CLI based store front",
+  "main": "bamazonCustomer.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/madhavparekh/mpamazon.git"
+  },
+  "author": "Madhav Parekh",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/madhavparekh/mpamazon/issues"
+  },
+  "homepage": "https://github.com/madhavparekh/mpamazon#readme",
+  "dependencies": {
+    "clear": "^0.1.0",
+    "colors": "^1.2.1",
+    "inquirer": "^5.2.0",
+    "mysql": "^2.15.0"
+  }
+}
