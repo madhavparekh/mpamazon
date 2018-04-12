@@ -1,9 +1,11 @@
 require('dotenv').config();
-
-var inquirer = require('inquirer');
 var clear = require('clear');
 var conCol = require('colors');
+//inquirer
+var inquirer = require('inquirer');
+var inq = inquirer.createPromptModule();
 
+//mysql
 var mySQL = require('mysql');
 var connection = mySQL.createConnection({
   host: process.env.RDS_HOSTNAME,
@@ -15,6 +17,7 @@ var connection = mySQL.createConnection({
 const prodToDisp = 5;
 var selectOffset = 0;
 var totalProducts = 0;
+var displayedProducts = [];
 
 connection.connect();
 
@@ -31,15 +34,19 @@ function loadProducts() {
     `SELECT * FROM products LIMIT ${prodToDisp} OFFSET ${selectOffset}`,
     function(error, results, fields) {
       if (error) throw error;
+
+      displayedProducts = [...results]; //store current products in arr for future use
+
       var choices = [];
       for (var i in results) {
-        var prod = results[i];
-        var str = `Product Name: ${prod.product_name
+        var indx = parseInt(i) + 1; //arr index to retrive product later
+        prod = results[i];
+        var str = `${indx} Product Name: ${prod.product_name
           .toString()
-          .padEnd(30, ' ')} - Price: $${prod.price
+          .padEnd(50, ' ')} - Price: $${prod.price
           .toString()
           .padStart(
-            6,
+            8,
             ' '
           )} - Qty on hand: ${prod.stock_quantity
           .toString()
@@ -49,69 +56,107 @@ function loadProducts() {
         choices.push(str);
       }
       //enter choice for previous/next 5 products
-      if (selectOffset > 0) choices.push('Previous 5 Products');
+      if (selectOffset > 0) choices.push('# Previous 5 Products');
       if (selectOffset + prodToDisp < totalProducts)
-        choices.push('Next 5 Products');
+        choices.push('# Next 5 Products');
       //choice to end buying session
-      choices.push('Exit');
+      choices.push('# Exit');
 
-      inquirer
-        .prompt([
-          {
-            type: 'list',
-            message: 'What would you like to buy?',
-            choices: choices,
-            name: 'picked',
-          },
-        ])
-        .then((data) => {
-          var choice = data.picked.split(' ')[0];
-          //load next/previous products
-          switch (choice) {
-            case 'Next':
-              selectOffset += 5;
-              loadProducts();
-              break;
-            case 'Previous':
-              selectOffset -= 5;
-              loadProducts();
-              break;
-            case 'Product':
-              var item_id = parseInt(data.picked.split('Item No:')[1].trim());
-              var qtyOnHand = parseInt(
-                data.picked
-                  .split('Qty on hand:')[1]
-                  .split('-')[0]
-                  .trim()
-              );
-              console.log(item_id + '  ' + qtyOnHand);
-              buyProduct(item_id, qtyOnHand);
-              break;
-            default:
-              connection.end();
-              break;
-          }
-        });
+      inq([
+        {
+          type: 'list',
+          message: 'What would you like to buy?',
+          choices: choices,
+          name: 'picked',
+        },
+      ]).then((data) => {
+        var choice = data.picked
+          .split(' ')[1]
+          .split(' ')[0]
+          .trim();
+        console.log(choice);
+        //load next/previous products
+        switch (choice) {
+          case 'Next':
+            selectOffset += 5;
+            loadProducts();
+            break;
+          case 'Previous':
+            selectOffset -= 5;
+            loadProducts();
+            break;
+          case 'Product':
+            buyProduct(data.picked);
+            break;
+          default:
+            connection.end();
+            break;
+        }
+      });
     }
   );
 }
 
-function buyProduct(item_id, qtyOnHand) {
-  console.log('buying');
-  inquirer
-    .prompt([
-      {
-        type: 'type',
-        message: 'Enter # of Items to buy:',
-        validate: (num) => {
-          return validateInput(num, qtyOnHand);
-        },
-        name: 'qtyToBuy',
+function buyProduct(prod) {
+  var prodPicked = displayedProducts[parseInt(prod.split(' ')[0].trim()) - 1];
+  var item_id = prodPicked.item_id;
+  var qtyOnHand = parseInt(prodPicked.stock_quantity);
+  var price = parseFloat(prodPicked.price);
+
+  inq([
+    {
+      type: 'type',
+      message: 'Enter # of Items to buy:',
+      validate: (num) => {
+        return validateInput(num, qtyOnHand);
       },
-    ])
-    .then((data) => {
-      console.log(data);
+      name: 'qty',
+    },
+  ]).then((data) => {
+    inq([
+      {
+        type: 'confirm',
+        message: `Confirm your purchase of ${
+          prodPicked.product_name
+        } - Price - $${price} 
+        Order QTY - ${data.qty} - Total cost: $${(price * data.qty).toFixed(
+          2
+        )}`,
+        name: 'purchased',
+      },
+    ]).then((d) => {
+      if (d.purchased) executePurchase(prodPicked, data.qty);
+      else {
+        console.log(`  No worries, let's try again`);
+        setTimeout(() => {
+          loadProducts();
+        }, 1500);
+      }
     });
+  });
+}
+
+function executePurchase(prod, qty) {
+  var updatedPS = prod.product_sales + qty * prod.price; //updated prod sales
+  var updatedOHQ = prod.stock_quantity - qty; //updated qty on hand
+
+  console.log(
+    '  Thank you for your order. Your purchase will be shipped shortly'
+  );
+
+  connection.query(
+    'UPDATE products SET stock_quantity= ?, product_sales = ? WHERE item_id = ?',
+    [updatedOHQ, updatedPS, prod.item_id],
+    (err, res, fl) => {
+      if (err) console.log(err);
+
+      //back to product listing..
+      selectOffset = 0;
+      setTimeout(() => {
+        loadProducts();
+      }, 1500);
+    }
+  );
 }
 
 function validateInput(char, qtyOnHand) {
