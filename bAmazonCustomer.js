@@ -11,27 +11,29 @@ var selectOffset = 0;
 var totalProducts = 0;
 var displayedProducts = [];
 
-connection.connect();
+connection.connect((err) => {
+  err ? console.log(err) : null;
+  //get length of table for pagination
+  connection.query('SELECT COUNT(*) as cnt FROM products', (err, res, fl) => {
+    err ? console.log(err) : null;
 
-connection.query('SELECT COUNT(*) as cnt FROM products', (err, res, fl) => {
-  if (err) throw err;
-  totalProducts = parseInt(res[0]['cnt']);
-  console.log(typeof totalProducts);
-  loadProducts();
+    totalProducts = parseInt(res[0]['cnt']);
+    loadProducts();
+  });
 });
 
 function loadProducts() {
   clear();
   connection.query(
     `SELECT * FROM products LIMIT ${prodToDisp} OFFSET ${selectOffset}`,
-    function(error, results, fields) {
-      if (error) throw error;
+    function(err, res, fl) {
+      err ? console.log(err) : null;
 
-      displayedProducts = [...results]; //store current products in arr for future use
+      displayedProducts = [...res]; //store current products in arr for future use
       var choices = [];
-      for (var i in results) {
+      for (var i in res) {
         var indx = parseInt(i) + 1; //arr index to retrive product later
-        prod = results[i];
+        prod = res[i];
         var str = `${indx} Product Name: ${prod.product_name
           .toString()
           .padEnd(50, ' ')} - Price: $${prod.price
