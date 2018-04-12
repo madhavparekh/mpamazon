@@ -1,6 +1,6 @@
 require('dotenv').config();
 var clear = require('clear');
-var conCol = require('colors');
+var colors = require('colors');// may not use this
 //inquirer
 var inquirer = require('inquirer');
 var inq = inquirer.createPromptModule();
@@ -36,7 +36,6 @@ function loadProducts() {
       if (error) throw error;
 
       displayedProducts = [...results]; //store current products in arr for future use
-
       var choices = [];
       for (var i in results) {
         var indx = parseInt(i) + 1; //arr index to retrive product later
@@ -53,7 +52,8 @@ function loadProducts() {
           .padStart(4, ' ')} - Item No: ${prod.item_id
           .toString()
           .padStart(4, ' ')}`;
-        choices.push(str);
+        
+          choices.push(str);
       }
       //enter choice for previous/next 5 products
       if (selectOffset > 0) choices.push('# Previous 5 Products');
