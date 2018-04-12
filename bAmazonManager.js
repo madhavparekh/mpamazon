@@ -91,30 +91,79 @@ function loadManagerPrompt() {
 function addToInventory() {}
 
 function loadProductsTable(opt) {
-  var tableData = [];
-
   var queryOpt = opt || '';
 
-  tableData.push(tableHeader);
+  //get data length
+  //get length of table for pagination
+  connection.query(
+    `SELECT COUNT(*) as cnt FROM products ${queryOpt}`,
+    (err, res, fl) => {
+      err ? console.log(err) : null;
 
-  connection.query(`SELECT * FROM products ${queryOpt}`, (err, res, fl) => {
-    if (err) throw err;
+      totalProducts = parseInt(res[0]['cnt']);
 
-    res.forEach((e) => {
-      var rowData = [];
-      rowData.push(
-        e.item_id,
-        e.product_name,
-        e.department_name,
-        `$${e.price.toFixed(2)}`,
-        e.stock_quantity,
-        `$${e.product_sales.toFixed(2)}`
-      );
-      tableData.push(rowData);
-    });
+      dispTable(queryOpt);
+    }
+  );
 
-    console.log(table(tableData, config));
+  function dispTable(queryOpt) {
+    clear();
+    var tableData = [];
 
-    loadManagerPrompt();
-  });
+    tableData.push(tableHeader);
+
+    connection.query(
+      `SELECT * FROM products ${queryOpt} LIMIT ${prodToDisp} OFFSET ${selectOffset}`,
+      (err, res, fl) => {
+        if (err) throw err;
+
+        res.forEach((e) => {
+          var rowData = [];
+          rowData.push(
+            e.item_id,
+            e.product_name,
+            e.department_name,
+            `$${e.price.toFixed(2)}`,
+            e.stock_quantity,
+            `$${e.product_sales.toFixed(2)}`
+          );
+          tableData.push(rowData);
+        });
+
+        console.log(table(tableData, config));
+
+        var choices = [];
+        //enter choice for previous/next 5 products
+        if (selectOffset > 0) choices.push('Previous 5 Products');
+        if (selectOffset + prodToDisp < totalProducts)
+          choices.push('Next 5 Products');
+        //choice to end buying session
+        choices.push('Exit ');
+
+        inq([
+          {
+            type: 'list',
+            message: 'Display:',
+            choices: choices,
+            name: 'scroll',
+          },
+        ]).then((data) => {
+          switch (data.scroll.split(' ')[0]) {
+            case 'Next':
+              selectOffset += 5;
+              dispTable(queryOpt);
+              break;
+            case 'Previous':
+              selectOffset -= 5;
+              dispTable(queryOpt);
+              break;
+            default:
+              selectOffset = 0;
+              loadManagerPrompt();
+              break;
+          }
+        });
+      }
+    );
+  }
 }
