@@ -18,9 +18,9 @@
   "homepage": "https://github.com/madhavparekh/mpamazon#readme",
   "dependencies": {
     "clear": "^0.1.0",
-    "colors": "^1.2.1",
     "dotenv": "^5.0.1",
     "inquirer": "^5.2.0",
-    "mysql": "^2.15.0"
+    "mysql": "^2.15.0",
+    "table": "^4.0.3"
   }
 }
