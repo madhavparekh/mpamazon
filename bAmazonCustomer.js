@@ -1,19 +1,11 @@
-require('dotenv').config();
 var clear = require('clear');
-var colors = require('colors');// may not use this
+
 //inquirer
 var inquirer = require('inquirer');
 var inq = inquirer.createPromptModule();
 
 //mysql
-var mySQL = require('mysql');
-var connection = mySQL.createConnection({
-  host: process.env.RDS_HOSTNAME,
-  user: process.env.RDS_USERNAME,
-  password: process.env.RDS_PASSWORD,
-  port: process.env.RDS_PORT,
-  database: process.env.RDS_DB,
-});
+var connection = require('./dbConnection');
 const prodToDisp = 5;
 var selectOffset = 0;
 var totalProducts = 0;
@@ -52,8 +44,8 @@ function loadProducts() {
           .padStart(4, ' ')} - Item No: ${prod.item_id
           .toString()
           .padStart(4, ' ')}`;
-        
-          choices.push(str);
+
+        choices.push(str);
       }
       //enter choice for previous/next 5 products
       if (selectOffset > 0) choices.push('# Previous 5 Products');
@@ -137,24 +129,41 @@ function buyProduct(prod) {
 }
 
 function executePurchase(prod, qty) {
-  var updatedPS = prod.product_sales + qty * prod.price; //updated prod sales
-  var updatedOHQ = prod.stock_quantity - qty; //updated qty on hand
-
-  console.log(
-    '  Thank you for your order. Your purchase will be shipped shortly'
-  );
-
   connection.query(
-    'UPDATE products SET stock_quantity= ?, product_sales = ? WHERE item_id = ?',
-    [updatedOHQ, updatedPS, prod.item_id],
+    'SELECT stock_quantity FROM products WHERE item_id=?',
+    [prod.item_id],
     (err, res, fl) => {
       if (err) console.log(err);
+      //check if enough qty avail to sell
+      if (qty < res[0].stock_quantity) {
+        var updatedPS = prod.product_sales + qty * prod.price; //updated prod sales
+        var updatedOHQ = prod.stock_quantity - qty; //updated qty on hand
 
-      //back to product listing..
-      selectOffset = 0;
-      setTimeout(() => {
-        loadProducts();
-      }, 1500);
+        console.log(
+          '  Thank you for your order. Your purchase will be shipped shortly'
+        );
+
+        connection.query(
+          'UPDATE products SET stock_quantity= ?, product_sales = ? WHERE item_id = ?',
+          [updatedOHQ, updatedPS, prod.item_id],
+          (err, res, fl) => {
+            if (err) console.log(err);
+
+            //back to product listing..
+            selectOffset = 0;
+            setTimeout(() => {
+              loadProducts();
+            }, 1500);
+          }
+        );
+      } else {
+        console.log(
+          `  Oops, not enough qty available to complete this purchase. Let's try again`
+        );
+        setTimeout(() => {
+          loadProducts();
+        }, 1500);
+      }
     }
   );
 }
