@@ -79,7 +79,7 @@ function loadManagerPrompt() {
         addToInventory();
         break;
       case '4':
-        loadProductsTable();
+        addNewProduct();
         break;
       default:
         connection.end();
@@ -88,7 +88,117 @@ function loadManagerPrompt() {
   });
 }
 
-function addToInventory() {}
+function addNewProduct() {
+  //get current departments
+  var prod = {
+    dept_name: '',
+    prod_name: '',
+    price: 0.0,
+    qty: 0,
+  };
+
+  connection.query(
+    `SELECT DISTINCT department_name FROM products`,
+    (err, res, fl) => {
+      var depts = [];
+      err ? console.log(err) : null;
+      res.forEach((e) => {
+        depts.push(e.department_name);
+      });
+      depts.push('Enter new department');
+
+      inq([
+        {
+          type: 'input',
+          message: `Enter product name:`,
+          validate: (name) => {
+            return validateString(name);
+          },
+          name: 'name',
+        },
+        {
+          type: 'input',
+          message: `Enter price:`,
+          validate: (num) => {
+            return validateDecimal(num);
+          },
+          name: 'price',
+        },
+        {
+          type: 'input',
+          message: `Enter QTY:`,
+          validate: (qty) => {
+            return validateInput(qty);
+          },
+          name: 'qty',
+        },
+        {
+          type: 'list',
+          message: `Choose department name:`,
+          choices: depts,
+          name: 'dept',
+        },
+      ]).then((data) => {
+        console.log(data);
+      });
+    }
+  );
+}
+
+function addToInventory() {
+  inq([
+    {
+      type: 'type',
+      message: `Enter Item's ID`,
+      validate: (id) => {
+        return validateInput(id);
+      },
+      name: 'id',
+    },
+    {
+      type: 'type',
+      message: 'Enter QTY to add to inventory',
+      validate: (qty) => {
+        return validateInput(qty);
+      },
+      name: 'qty',
+    },
+  ]).then((data) => {
+    connection.query(
+      `UPDATE products p INNER JOIN products p1 ON (p.item_id = p1.item_id AND p.item_id=${
+        data.id
+      })
+    SET p.stock_quantity = p1.stock_quantity + ${data.qty}`,
+      (err, res, fl) => {
+        err ? console.log(err) : null;
+
+        console.log(res);
+        //if id didn't match
+        if (!res.changedRows) {
+          console.log(`  Error: Please enter a valid Item ID`);
+          setTimeout(() => {
+            addToInventory();
+          }, 1500);
+        } else {
+          //if id matched
+          console.log(
+            `  QTY: ${data.qty} successfully added to item_id: ${data.id}`
+          );
+          setTimeout(() => {
+            loadManagerPrompt();
+          }, 1500);
+        }
+      }
+    );
+  });
+}
+
+function validateInput(num) {
+  num = parseInt(num);
+  if (!/[\d]/.test(num)) {
+    return 'Enter digits only';
+  } else return true;
+}
 
 function loadProductsTable(opt) {
   var queryOpt = opt || '';
