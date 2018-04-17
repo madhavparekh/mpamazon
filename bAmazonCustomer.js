@@ -137,34 +137,36 @@ function executePurchase(prod, qty) {
     (err, res, fl) => {
       if (err) console.log(err);
       //check if enough qty avail to sell
-      if (qty < res[0].stock_quantity) {
-        var updatedPS = prod.product_sales + qty * prod.price; //updated prod sales
-        var updatedOHQ = prod.stock_quantity - qty; //updated qty on hand
+      else {
+        if (qty <= res[0].stock_quantity) {
+          var updatedPS = prod.product_sales + qty * prod.price; //updated prod sales
+          var updatedOHQ = prod.stock_quantity - qty; //updated qty on hand
 
-        console.log(
-          '  Thank you for your order. Your purchase will be shipped shortly'
-        );
+          console.log(
+            '  Thank you for your order. Your purchase will be shipped shortly'
+          );
 
-        connection.query(
-          'UPDATE products SET stock_quantity= ?, product_sales = ? WHERE item_id = ?',
-          [updatedOHQ, updatedPS, prod.item_id],
-          (err, res, fl) => {
-            if (err) console.log(err);
+          connection.query(
+            'UPDATE products SET stock_quantity= ?, product_sales = ? WHERE item_id = ?',
+            [updatedOHQ, updatedPS, prod.item_id],
+            (err, res, fl) => {
+              if (err) console.log(err);
 
-            //back to product listing..
-            selectOffset = 0;
-            setTimeout(() => {
-              loadProducts();
-            }, 1500);
-          }
-        );
-      } else {
-        console.log(
-          `  Oops, not enough qty available to complete this purchase. Let's try again`
-        );
-        setTimeout(() => {
-          loadProducts();
-        }, 1500);
+              //back to product listing..
+              selectOffset = 0;
+              setTimeout(() => {
+                loadProducts();
+              }, 1500);
+            }
+          );
+        } else {
+          console.log(
+            `  Oops, not enough qty available to complete this purchase. Let's try again`
+          );
+          setTimeout(() => {
+            loadProducts();
+          }, 1500);
+        }
       }
     }
   );
@@ -176,5 +178,7 @@ function validateInput(char, qtyOnHand) {
     return 'Enter digits only';
   } else if (char > qtyOnHand) {
     return `Sorry, maximum items availble to purchase: ${qtyOnHand}. Re-enter qty to purchase`;
+  } else if (char === 0) {
+    return `Purchase qty must be 1 or more. Re-enter qty to purchase`;
   } else return true;
 }
