@@ -51,6 +51,7 @@ connection.connect((err) => {
 });
 
 function loadManagerPrompt() {
+  clear();
   var choices = [
     '1. View Products for Sale',
     '2. View Low Inventory',
@@ -98,49 +99,96 @@ function addNewProduct() {
   };
 
   connection.query(
-    `SELECT DISTINCT department_name FROM products`,
+    `SELECT department_name FROM departments`,
     (err, res, fl) => {
-      var depts = [];
-      err ? console.log(err) : null;
-      res.forEach((e) => {
-        depts.push(e.department_name);
-      });
-      depts.push('Enter new department');
+      if (err) console.log(err);
+      else {
+        var isNewDept = false;
+        var depts = [];
+        res.forEach((e) => {
+          depts.push(e.department_name);
+        });
+        depts.push('Enter new department');
 
-      inq([
-        {
-          type: 'input',
-          message: `Enter product name:`,
-          validate: (name) => {
-            return validateString(name);
+        inq([
+          {
+            type: 'input',
+            message: `Enter product name:`,
+            // validate: (name) => {
+            //   return validateString(name);
+            // },
+            name: 'name',
           },
-          name: 'name',
-        },
-        {
-          type: 'input',
-          message: `Enter price:`,
-          validate: (num) => {
-            return validateDecimal(num);
+          {
+            type: 'input',
+            message: `Enter price:`,
+            validate: (num) => {
+              return validateDecimal(num);
+            },
+            name: 'price',
           },
-          name: 'price',
-        },
-        {
-          type: 'input',
-          message: `Enter QTY:`,
-          validate: (qty) => {
-            return validateInput(qty);
+          {
+            type: 'input',
+            message: `Enter QTY:`,
+            validate: (qty) => {
+              return validateInput(qty);
+            },
+            name: 'qty',
           },
-          name: 'qty',
-        },
-        {
-          type: 'list',
-          message: `Choose department name:`,
-          choices: depts,
-          name: 'dept',
-        },
-      ]).then((data) => {
-        console.log(data);
-      });
+          {
+            type: 'list',
+            message: `Choose department name:`,
+            choices: depts,
+            name: 'dept',
+          },
+          {
+            type: 'input',
+            message: 'Enter new Dept. name',
+            when: (d) => {
+              return d.dept === 'Enter new department';
+            },
+            validate: (data)=>{
+              isNewDept = true;
+              return true;
+            },
+            name: 'dept',
+          },
+        ]).then((data) => {
+          connection.query(
+            `INSERT INTO products (product_name, department_name, price, stock_quantity) VALUES (?,?,?,?)`,
+            [data.name, data.dept, data.price, data.qty],
+            (err, res, fl) => {
+              if (err) console.log(err);
+              else {
+                console.log(`  New product ${data.name} added`);
+
+                //adding new dept to departments
+                if (isNewDept) {
+                  addNewDept(data.dept);
+                  isNewDept = false;
+                }
+
+                setTimeout(() => {
+                  loadManagerPrompt();
+                }, 1500);
+              }
+            }
+          );
+        });
+      }
+    }
+  );
+}
+
+function addNewDept(dept) {
+  connection.query(
+    `INSERT INTO departments (department_name) VALUES (?)`,
+    [dept],
+    (err, res, fl) => {
+      if (err) console.log(err);
+      else {
+        console.log(`  Updated Departments`);
+      }
     }
   );
 }
@@ -170,32 +218,45 @@ function addToInventory() {
       })
     SET p.stock_quantity = p1.stock_quantity + ${data.qty}`,
       (err, res, fl) => {
-        err ? console.log(err) : null;
-
-        console.log(res);
-        //if id didn't match
-        if (!res.changedRows) {
-          console.log(`  Error: Please enter a valid Item ID`);
-          setTimeout(() => {
-            addToInventory();
-          }, 1500);
-        } else {
-          //if id matched
-          console.log(
-            `  QTY: ${data.qty} successfully added to item_id: ${data.id}`
-          );
-          setTimeout(() => {
-            loadManagerPrompt();
-          }, 1500);
+        if (err) console.log(err);
+        else {
+          //if id didn't match
+          if (!res.changedRows) {
+            console.log(`  Error: Please enter a valid Item ID`);
+            setTimeout(() => {
+              addToInventory();
+            }, 1500);
+          } else {
+            //if id matched
+            console.log(
+              `  QTY: ${data.qty} successfully added to item_id: ${data.id}`
+            );
+            setTimeout(() => {
+              loadManagerPrompt();
+            }, 1500);
+          }
         }
       }
     );
   });
 }
 
+function validateString(str) {
+  if (!/\w-{10,50}/.test(str)) {
+    return 'Alpha Numerical charactors only';
+  } else return true;
+}
+
 function validateInput(num) {
   num = parseInt(num);
-  if (!/[\d]/.test(num)) {
+  if (!/\d+/.test(num)) {
+    return 'Enter digits only';
+  } else return true;
+}
+
+function validateDecimal(num) {
+  num = parseFloat(num);
+  if (!/(\d+\.\d{2})/.test(num)) {
     return 'Enter digits only';
   } else return true;
 }
@@ -215,65 +276,65 @@ function loadProductsTable(opt) {
       dispTable(queryOpt);
     }
   );
+}
 
-  function dispTable(queryOpt) {
-    clear();
-    var tableData = [];
+function dispTable(queryOpt) {
+  clear();
+  var tableData = [];
 
-    tableData.push(tableHeader);
+  tableData.push(tableHeader);
 
-    connection.query(
-      `SELECT * FROM products ${queryOpt} LIMIT ${prodToDisp} OFFSET ${selectOffset}`,
-      (err, res, fl) => {
-        if (err) throw err;
+  connection.query(
+    `SELECT * FROM products ${queryOpt} LIMIT ${prodToDisp} OFFSET ${selectOffset}`,
+    (err, res, fl) => {
+      if (err) throw err;
 
-        res.forEach((e) => {
-          var rowData = [];
-          rowData.push(
-            e.item_id,
-            e.product_name,
-            e.department_name,
-            `$${e.price.toFixed(2)}`,
-            e.stock_quantity,
-            `$${e.product_sales.toFixed(2)}`
-          );
-          tableData.push(rowData);
-        });
+      res.forEach((e) => {
+        var rowData = [];
+        rowData.push(
+          e.item_id,
+          e.product_name,
+          e.department_name,
+          `$${e.price.toFixed(2)}`,
+          e.stock_quantity,
+          `$${e.product_sales.toFixed(2)}`
+        );
+        tableData.push(rowData);
+      });
 
-        console.log(table(tableData, config));
+      console.log(table(tableData, config));
 
-        var choices = [];
-        //enter choice for previous/next 5 products
-        if (selectOffset > 0) choices.push('Previous 5 Products');
-        if (selectOffset + prodToDisp < totalProducts)
-          choices.push('Next 5 Products');
-        //choice to end buying session
-        choices.push('Exit ');
+      var choices = [];
+      //enter choice for previous/next 5 products
+      if (selectOffset > 0) choices.push('Previous 5 Products');
+      if (selectOffset + prodToDisp < totalProducts)
+        choices.push('Next 5 Products');
+      //choice to end buying session
+      choices.push('Exit ');
 
-        inq([
-          {
-            type: 'list',
-            message: 'Display:',
-            choices: choices,
-            name: 'scroll',
-          },
-        ]).then((data) => {
-          switch (data.scroll.split(' ')[0]) {
-            case 'Next':
-              selectOffset += 5;
-              dispTable(queryOpt);
-              break;
-            case 'Previous':
-              selectOffset -= 5;
-              dispTable(queryOpt);
-              break;
-            default:
-              selectOffset = 0;
-              loadManagerPrompt();
-              break;
-          }
-        });
-      }
-    );
-  }
+      inq([
+        {
+          type: 'list',
+          message: 'Display:',
+          choices: choices,
+          name: 'scroll',
+        },
+      ]).then((data) => {
+        switch (data.scroll.split(' ')[0]) {
+          case 'Next':
+            selectOffset += 5;
+            dispTable(queryOpt);
+            break;
+          case 'Previous':
+            selectOffset -= 5;
+            dispTable(queryOpt);
+            break;
+          default:
+            selectOffset = 0;
+            loadManagerPrompt();
+            break;
+        }
+      });
+    }
+  );
 }
